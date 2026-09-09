@@ -85,7 +85,7 @@ sub map_servers_by_service {
 
 my $q = CGI->new;
 
-my $data = parse_json("/home/kipry/src/task_6.json");
+my $data = parse_json("/home/kipry/src/perl/task_6.json");
 my $max = analyse_ram($data);
 my $html_rows = build_table_rows($q, $data, $max);
 my $servers_by_services = map_servers_by_service($data);

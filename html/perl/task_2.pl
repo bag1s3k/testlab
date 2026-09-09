@@ -59,7 +59,7 @@ use constant DEFAULT => 0; # represents 1. column
 my $q = CGI->new;
 my $selected_column = $q->param("selected_column") // DEFAULT;
 
-my @lines = parse_txt("/home/kipry/src/task_2.txt");
+my @lines = parse_txt("/home/kipry/src/perl/task_2.txt");
 my @sorted_lines = sort_by_selected_column($selected_column, @lines);
 my @html_rows = create_html_rows($q, @sorted_lines);
 

@@ -86,7 +86,7 @@ print $q->header({ -charset => "utf-8"});
 print $q->start_html();
 print $q->h1("task 5");
 
-my @books = parse_csv($q, "/home/kipry/src/task_5.csv");
+my @books = parse_csv($q, "/home/kipry/src/perl/task_5.csv");
 my ($valid, $sum, $min, $max, $avg) = analyse_by_pages(@books);
 my @html_table = create_html_rows($q, $avg, @books);
 

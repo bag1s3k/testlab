@@ -45,7 +45,7 @@ sub create_html_rows {
 
 
 my $q = CGI->new;
-my @lines = parse_csv("/home/kipry/src/task_3.csv");
+my @lines = parse_csv("/home/kipry/src/perl/task_3.csv");
 my @html_rows = create_html_rows($q, @lines);
 
 print $q->header({ -charset => "utf-8" });
