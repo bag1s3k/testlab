@@ -2,111 +2,147 @@
 
 use warnings;
 use strict;
-use DBI;
 use CGI;
+use CGI::Carp "fatalsToBrowser";
 
-package Database;
-#
-# TODO: class docstring
-#
+use lib '.';
+use Database;
+#use HTMLPage;
 
-sub new {
-  #
-  # Constructor. Creates a new Database object.
-  #
-  my ($class, %args) = @_;
 
-  my $self = {
-    _creds => $args{creds},
-    _dbh => undef
-  };
-
-  bless $self, $class;
-  return $self;
-}
-
-sub load_creds {
-  #
-  # Parses KEY=VALUE pairs from an environment file
-  #
-  my ($self, $path) = @_;
-
-  open(my $fh, '<', $path) or die "Cannot open file $path for reading: $!";
-
-  my $credentials;
-  while (my $row = <$fh>) {
-    my ($key, $value) = $row =~ /(^[A-Z0-9_]+)=(.*$)/;
-    $credentials->{$key} = $value;
-  }
-
-  $self->{_creds} = $credentials;
-
-  return $self;
-}
-
-sub get_creds {
-  # 
-  # Returns the copy of currently stored credentials
-  # In case of uninitialized credentials return empty anonymous hash
-  #
-  my ($self) = @_;
-  return { %{ $self->{_creds} // {} } };
-}
-
-sub get_conn {
-  #
-  # Returns database handle
-  #
-  my ($self) = @_;
-  return $self->{_dbh};
-}
-
-sub connect {
-  #
-  # Established a DBI database connection using stored credentials.
-  #
-  my ($self, $db_type, $auto_commit) = @_;
-
-  my $creds = $self->{_creds};
-  my $db_name = $creds->{'DATABASE'};
-  my $host = $creds->{'HOST'} // "localhost";
-  my $port = $creds->{'PORT'} // 3306;
-  my $user = $creds->{'USER'} // "root";
-  my $password = $creds->{'PASSWORD'} // "";
-  
-  my $dbh = DBI->connect(
-    "DBI:$db_type:database=$db_name;host=$host;port=$port",
-    $user,
-    $password,
-    {
-      RaiseError => 1,
-      mysql_enable_utf8 => 1,
-      auto_commit => ($auto_commit // 0)
-    }
-  ) or die "Unable to connect to database: $db_name";
-
-  $self->{_dbh} = $dbh;
-
-  return $self;
-}
-
-sub DESTROY {
-  #
-  # Disconnect the database connection
-  #
-  my ($self) = @_;
-  $self->{_dbh}->disconnect();
-}
-
-1; # End of package declaration
-
+my $q = CGI->new();
 my $db = Database->new();
 $db->load_creds("/home/kipry/.db_env")->connect("mysql", 0);
-my $dbh = $db->get_conn();
-my $sth = $dbh->prepare("SELECT * FROM subjects");
-$sth->execute();
 
-while (my @row = $sth->fetchrow_array()) {
-  print "@row\n";
+my $action = $q->param("action") // "list"; # NOTE: default should be 'list'
+
+if ($action eq "list") {
+  show_list($q, $db);
+} elsif ($action eq "delete") {
+  handle_delete($q, $db);
+} elsif ($action eq "edit") {
+  handle_edit($q, $db);
+} elsif ($action eq "add") {
+  handle_add($q, $db);
 }
 
+sub show_list {
+  #
+  # TODO:
+  #
+  my ($q, $db) = @_;
+
+
+  print $q->header({ -charset => "utf-8" });
+  print $q->start_html();
+  print $q->h1("Task 2");
+
+  my $list = $db->get_all("subjects");
+
+  print $q->start_form({ -method => "GET" });
+  
+  my @html_rows;
+  push @html_rows, $q->Tr($q->th(["", "id", "title", "credits"]));
+  for my $row (@$list) {
+    push @html_rows, $q->Tr(
+      $q->td($q->checkbox(-name => 'selected', -value => $row->[0], -label => '')),
+      $q->td($row)
+    );
+  }
+
+  print $q->table({ border => 1 }, @html_rows);
+
+  print $q->p(
+    $q->submit({ -name => "action", -value => "edit", -label => "Edit Selected" }),
+    $q->submit({ -name => "action", -value => "delete", -label => "Delete Seletecd" }),
+    $q->submit({ -name => "action", -value => "add", -label => "Add new" })
+  );
+
+  print $q->end_form();
+
+  print $q->end_html();
+}
+
+sub handle_delete {
+  #
+  # TODO:
+  #
+  my ($q, $db) = @_;
+
+  my $selected = [$q->param("selected")];
+
+  $db->delete_data("subjects", $selected);
+
+  print $q->redirect("?action=list");
+}
+
+sub handle_edit {
+  #
+  # TODO:
+  #
+  my ($q, $db) = @_;
+
+  my $selected = [$q->param("selected")];
+
+  if (grep { defined $q->param("title_$_") } @$selected) {
+    my @updates;
+    for my $id (@$selected) {
+      my $title   = $q->param("title_$id");
+      my $credits = $q->param("credits_$id");
+      push @updates, [$id, $title, $credits];
+    }
+
+    $db->save_data("subjects", \@updates);
+
+    print $q->redirect("?action=list");
+    exit;
+  }
+
+  print $q->header({ -charset => "utf-8" });
+  print $q->start_html();
+  print $q->h1("Task 2");
+  print $q->start_form({ -method => "GET" });
+
+  my $table = $db->get_specific("subjects", $selected);
+  for my $row (@$table) {
+    print $q->p(
+      $row->[0],
+      $q->textfield(-name=>"title_$row->[0]", -default=>$row->[1]),
+      $q->textfield(-name=>"credits_$row->[0]", -default=>$row->[2])
+    );
+    print $q->hidden(-name=>"selected", -value=>$row->[0]);
+  }
+  print $q->submit({ -name=>"action", -value=>"edit" });
+
+  print $q->end_form();
+  print $q->end_html();
+}
+
+sub handle_add {
+  #
+  # TODO: 
+  #
+  my ($q, $db) = @_;
+
+  if (defined $q->param("title") and defined $q->param("credits")) {
+    my $title = $q->param("title");
+    my $credits = $q->param("credits");
+
+    $db->add_data("subjects", [[ $title, $credits ]]);
+    print $q->redirect("?action=list");
+    exit;
+  }
+  print $q->header({ -charset => "utf-8"});
+  print $q->start_html();
+  print $q->h1("Task 2");
+
+  print $q->start_form({ -method => 'GET' });
+
+  for my $header ("title", "credits") {
+    print $q->textfield(-name=>$header, -placeholder=>$header);
+  }
+
+  print $q->submit({ -name => "action", -value => "add" });
+  print $q->end_form();
+  print $q->end_html();
+}
