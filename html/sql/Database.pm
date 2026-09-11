@@ -153,13 +153,12 @@ sub add_data {
   $self->{_dbh}->commit();
 }
 
-sub disconnect {
+sub DESTROY {
   #
-  # Disconnect the database connection
+  # TODO:
   #
   my ($self) = @_;
-
-  $self->{_dbh}->disconnect();
+  $self->{_dbh}->disconnect() if self->{_dbh};
 }
 
 1; # End of package declaration
