@@ -37,7 +37,8 @@ sub show_list {
   print $q->start_html();
   print $q->h1("Task 2");
 
-  my $list = $db->get_all("subjects");
+  #my $list = $db->get_all("subjects");
+  my $list = $db->run("SELECT * FROM subjects ORDER BY title ASC");
 
   print $q->start_form({ -method => "GET" });
   
@@ -128,7 +129,7 @@ sub handle_add {
     my $title = $q->param("title");
     my $credits = $q->param("credits");
 
-    $db->add_data("subjects", [[ $title, $credits ]]);
+    $db->add_data("subjects",["title", "credits"], [[ $title, $credits ]]);
     print $q->redirect("?action=list");
     exit;
   }

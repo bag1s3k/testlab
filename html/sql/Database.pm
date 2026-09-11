@@ -81,22 +81,14 @@ sub connect {
   return $self;
 }
 
-sub get_conn {
+sub run {
   #
-  # Returns database handle
+  # TODO: 
   #
-  my ($self) = @_;
-  return $self->{_dbh};
-}
+  my ($self, $sql, $data) = @_;
 
-sub get_all {
-  #
-  # # TODO: ...
-  #
-  my ($self, $table) = @_;
-
-  my $sth = $self->{_dbh}->prepare("SELECT * FROM $table ORDER BY title ASC");
-  $sth->execute();
+  my $sth = $self->{_dbh}->prepare($sql);
+  $sth->execute(@$data);
   return $sth->fetchall_arrayref();
 }
 
@@ -116,7 +108,6 @@ sub get_specific {
 sub save_data {
   #
   # Updates multiple rows at once.
-  # $data is an arrayref of [id, title, credits] rows.
   #
   my ($self, $table, $data) = @_;
 
@@ -149,11 +140,13 @@ sub add_data {
   #
   # TODO:
   #
-  my ($self, $table, $data) = @_;
+  my ($self, $table, $columns, $rows) = @_;
 
-  my $sth = $self->{_dbh}->prepare("INSERT INTO $table (title, credits) VALUES (?, ?)");
+  my $cols = join(", ", @$columns);
+  my $placeholder = join(", ", ("?") x scalar @$columns);
+  my $sth = $self->{_dbh}->prepare("INSERT INTO $table ($cols) VALUES ($placeholder)");
 
-  for my $row (@$data) {
+  for my $row (@$rows) {
     $sth->execute(@$row);
   }
 
