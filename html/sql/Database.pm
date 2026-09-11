@@ -6,7 +6,8 @@ use DBI;
 
 package Database;
 #
-# TODO: class docstring
+# Manages database connections, configuration loading
+# and CRUD operations
 #
 
 sub new {
@@ -83,7 +84,7 @@ sub connect {
 
 sub run {
   #
-  # TODO: 
+  # Executes a custom SQL statement with given bind parameters
   #
   my ($self, $sql, $data) = @_;
 
@@ -94,7 +95,7 @@ sub run {
 
 sub get_specific {
   #
-  # TODO:
+  # Fetches rows from a table matching a list by IDs
   #
   my ($self, $table, $ids) = @_;
 
@@ -123,7 +124,7 @@ sub save_data {
 
 sub delete_data {
   #
-  # TODO: ...
+  # Deletes rows from a table where ID matches from the given array
   #
   my ($self, $table, $ids) = @_;
 
@@ -138,7 +139,7 @@ sub delete_data {
 
 sub add_data {
   #
-  # TODO:
+  # Inserts multiple rows into specified table columns
   #
   my ($self, $table, $columns, $rows) = @_;
 
@@ -155,10 +156,10 @@ sub add_data {
 
 sub DESTROY {
   #
-  # TODO:
+  # Automatically disconnect database connection
   #
   my ($self) = @_;
-  $self->{_dbh}->disconnect() if self->{_dbh};
+  $self->{_dbh}->disconnect() if $self->{_dbh};
 }
 
 1; # End of package declaration

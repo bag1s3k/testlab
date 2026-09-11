@@ -7,14 +7,13 @@ use CGI::Carp "fatalsToBrowser";
 
 use lib '.';
 use Database;
-#use HTMLPage;
 
 
 my $q = CGI->new();
 my $db = Database->new();
 $db->load_creds("/home/kipry/.db_env")->connect("mysql", 0);
 
-my $action = $q->param("action") // "list"; # NOTE: default should be 'list'
+my $action = $q->param("action") // "list";
 
 if ($action eq "list") {
   show_list($q, $db);
@@ -26,18 +25,17 @@ if ($action eq "list") {
   handle_add($q, $db);
 }
 
+
 sub show_list {
   #
-  # TODO:
+  # Show home page. READ part.
   #
   my ($q, $db) = @_;
-
 
   print $q->header({ -charset => "utf-8" });
   print $q->start_html();
   print $q->h1("Task 2");
 
-  #my $list = $db->get_all("subjects");
   my $list = $db->run("SELECT * FROM subjects ORDER BY title ASC");
 
   print $q->start_form({ -method => "GET" });
@@ -66,7 +64,7 @@ sub show_list {
 
 sub handle_delete {
   #
-  # TODO:
+  # Delete selected rows
   #
   my ($q, $db) = @_;
 
@@ -79,7 +77,7 @@ sub handle_delete {
 
 sub handle_edit {
   #
-  # TODO:
+  # Edit selected rows
   #
   my ($q, $db) = @_;
 
@@ -121,7 +119,7 @@ sub handle_edit {
 
 sub handle_add {
   #
-  # TODO: 
+  # Show form for adding new records
   #
   my ($q, $db) = @_;
 
@@ -133,6 +131,7 @@ sub handle_add {
     print $q->redirect("?action=list");
     exit;
   }
+
   print $q->header({ -charset => "utf-8"});
   print $q->start_html();
   print $q->h1("Task 2");
