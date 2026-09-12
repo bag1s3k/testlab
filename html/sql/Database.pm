@@ -145,7 +145,7 @@ sub add_data {
 
     my $cols = join(", ", @$columns);
     my $placeholder = join(", ", ("?") x scalar @$columns);
-    my $sth = $self->{_dbh}->prepare("INSERT INTO $table ($cols) VALUES ($placeholder)");
+    my $sth = $self->{_dbh}->prepare("INSERT IGNORE INTO $table ($cols) VALUES ($placeholder)");
 
     for my $row (@$rows) {
         $sth->execute(@$row);

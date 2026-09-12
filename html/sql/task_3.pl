@@ -8,14 +8,13 @@ use CGI::Carp "fatalsToBrowser";
 use lib ".";
 use Database;
 
-# Vytvořte podobnou aplikaci na údržbu tabulky studentů. Umožněte přetřídit tabulku volbou
-# záhlaví tabulky (jako Excel) u id, jména, příjmení, data narození. Umožněte druhým kliknutím
-# volit směr řazení. Každý řádek tabulky se seznamem studentů udělejte rozklikávací na
-# přiřazování předmětů pro tohoto studenta.
-
 my $q = CGI->new();
 my $db = Database->new();
 $db->load_creds("/home/kipry/.db_env")->connect("mysql", 0);
+
+if (defined $q->param("home")) {
+    print $q->redirect("/~kipry/sql/task_3.pl");
+}
 
 my $column = $q->param("sort") // "id";
 my $order = $q->param($column) // 1;
@@ -30,7 +29,29 @@ my $subjects = $db->run("SELECT * FROM subjects");
 
 show_table($q, $data, $subjects, $order, $column);
 
+save_subjects($q, $db);
+
 print $q->end_html();
+
+sub save_subjects {
+    #
+    # Saves selected subjects for students in the database.
+    #
+    my ($q, $db) = @_;
+
+    my @params = $q->param();
+
+    my @to_save;
+    for my $param (@params) {
+        if ($param =~ /student_(\d+)/) {
+            if (defined $q->param($param) and $q->param($param) ne "") {
+                push @to_save, [$1, $q->param($param)];
+            }
+        }
+    }
+
+    $db->add_data("student_subject", ["student_id", "subject_id"], \@to_save);
+}
 
 sub parse_subject_data {
     #
@@ -85,6 +106,8 @@ sub show_table {
     }
     
     print $q->table({ -border=>1 }, @html_table);
+
+    print $q->submit(-name=>"home");
     
     print $q->end_form();
 }
