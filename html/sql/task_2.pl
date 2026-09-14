@@ -59,6 +59,10 @@ sub show_list {
 
   print $q->end_form();
 
+  if (defined $q->param("denied")) {
+    print $q->p("Some subjects haven't been deleted (someone is already studying)");
+  }
+
   print $q->end_html();
 }
 
@@ -70,9 +74,25 @@ sub handle_delete {
 
   my $selected = [$q->param("selected")];
 
-  $db->delete_data("subjects", $selected);
+  my $denied = 0;
+  for my $id (@$selected) {
+      my $exists = $db->run(
+          "SELECT EXISTS (SELECT 1 FROM marks WHERE subject_id = ?)",
+          [$id]
+      )->[0]->[0];
 
-  print $q->redirect("?action=list");
+      if (!$exists) {
+          $db->delete_data("subjects", [$id]);
+      } else {
+          $denied = 1;
+      }
+  }
+
+  if ($denied) {
+      print $q->redirect("?action=list&denied=1");
+  } else {
+      print $q->redirect("?action=list");
+  }
 }
 
 sub handle_edit {
