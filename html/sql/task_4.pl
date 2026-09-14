@@ -70,6 +70,33 @@ sub get_received_credits {
     return $total_credits;
 }
 
+
+sub get_weighted_average {
+    my ($db, $student_id) = @_;
+
+    my $marks = $db->run("
+        SELECT m.mark, s.credits
+        FROM marks m
+        JOIN subjects s ON m.subject_id = s.id
+        WHERE m.student_id = ?
+    ", [$student_id]);
+
+    my $total_weighted_marks = 0;
+    my $total_credits = 0;
+
+    for my $mark (@$marks) {
+        my ($mark_value, $credits) = @$mark;
+
+        next unless defined $mark_value && $mark_value >= 1 && $mark_value <= 5;
+
+        $total_weighted_marks += $mark_value * $credits;
+        $total_credits += $credits;
+    }
+
+    return $total_credits ? ($total_weighted_marks / $total_credits) : 0;
+}
+
+
 my $subjects = $db->run("SELECT * FROM subjects");
 my %subjects_map = map { $_->[0] => $_->[1] } @$subjects;
 my $marks = $db->run("SELECT * FROM marks WHERE subject_id = ?", [$selected_subject]);
@@ -83,7 +110,7 @@ if (@$marks) {
     for my $row (@$selected_students) {
         push @html_table, $q->Tr(
             $q->td($row),
-            $q->td(), # TODO: weighted average marks by credits per student
+            $q->td(get_weighted_average($db, $row->[0])),
             $q->td(get_received_credits($db, $row->[0])),
             $q->td(
                 $q->popup_menu(
