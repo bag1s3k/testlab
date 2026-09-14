@@ -1,23 +1,21 @@
 #!/usr/bin/perl
 
-use strict;
 use warnings;
+use strict;
 use DBI;
 
 package Database_v2;
 #
-# v. 2
 # Manages database connections, configuration loading
 # and CRUD operations
 #
 
-
 sub new {
     #
-    # Constructor, Creates a new Database object
+    # Constructor. Creates a new Database obejct.
     #
     my ($class, %args) = @_;
-
+    
     my $self = {
         _creds => $args{creds},
         _dbh => undef
@@ -27,117 +25,138 @@ sub new {
     return $self;
 }
 
-sub 
-package Database;
-
-use warnings;
-use strict;
-use DBI;
-use Carp qw(croak);
-
-sub new {
-    my ($class, %args) = @_;
-    return bless {
-        creds => $args{creds},
-        dbh   => undef,
-    }, $class;
-}
 
 sub load_creds {
+    # 
+    # Parses KEY=VALUE pairs from an environment file
+    #
     my ($self, $path) = @_;
-    open(my $fh, '<', $path) or croak "Cannot open $path: $!";
+
+    open(my $fh, '<', $path) or die "Cannot open file '$path' for reading: $!";
+
     my %creds;
     while (my $row = <$fh>) {
         chomp $row;
-        next if $row =~ /^\s*(?:\#|$)/;
-        my ($k, $v) = $row =~ /^([A-Z0-9_]+)=(.*)$/ or next;
+        my ($k, $v) = $row =~ /^([A-Z0-9_]+)=(.*)/;
         $creds{$k} = $v;
     }
     close $fh;
-    $self->{creds} = \%creds;
+    $self->{_creds} = \%creds;
+
     return $self;
 }
 
 sub get_creds {
+    #
+    # Returns the copy of currently stored credentials
+    # In case of uninitialized credentials return empty anonymous hash
+    #
     my ($self) = @_;
-    return { %{ $self->{creds} // {} } };
+    return { %{ $self->{_creds} // {} } };
 }
 
 sub connect {
+    #
+    # Established a DBI database connection using stored credentials.
+    #
     my ($self, $db_type, $auto_commit) = @_;
-    $db_type //= 'mysql';
-    my $c = $self->{creds} or croak "No credentials loaded";
 
-    my $dsn = sprintf "DBI:%s:database=%s;host=%s;port=%s",
-        $db_type,
-        $c->{DATABASE},
-        $c->{HOST} // 'localhost',
-        $c->{PORT} // 3306;
+    my $creds = $self->{_creds};
+    my $db_name = $creds->{'DATABASE'};
+    my $host = $creds->{'HOST'} // "localhost";
+    my $port = $creds->{'PORT'} // 3306;
+    my $user = $creds->{'USER'} // "root";
+    my $password = $creds->{'PASSWORD'} // "";
 
     my $dbh = DBI->connect(
-        $dsn,
-        $c->{USER}     // 'root',
-        $c->{PASSWORD} // '',
+        "DBI:$db_type:database=$db_name;host=$host;port=$port",
+        $user,
+        $password,
         {
-            RaiseError           => 1,
-            PrintError           => 0,
-            mysql_enable_utf8mb4 => 1,
-            AutoCommit           => $auto_commit ? 1 : 0,
+            RaiseError => 1,
+            mysql_enable_utf8 => 1,
+            auto_commit => ($auto_commit // 0)
         }
-    ) or croak "DB connect failed: " . DBI->errstr;
+    ) or die "Unable to connect to database: $db_name";
 
-    $self->{dbh} = $dbh;
+    $self->{_dbh} = $dbh;
+
     return $self;
 }
 
-sub dbh { $_[0]->{dbh} }
-
-# ---------------------------------------------------------------
-# Low-level
-# ---------------------------------------------------------------
-
 sub run {
+    # TODO: docs
     my ($self, $sql, @bind) = @_;
-    my $sth = $self->{dbh}->prepare($sql);
+
+    my $sth = $self->{_dbh}->prepare($sql);
     $sth->execute(@bind);
     return $sth;
 }
 
-sub select_all    { return $_[0]->run($_[1], @_[2..$#_])->fetchall_arrayref() }
-sub select_hashes { return $_[0]->run($_[1], @_[2..$#_])->fetchall_arrayref({}) }
-sub select_hash   { return $_[0]->run($_[1], @_[2..$#_])->fetchrow_hashref() }
+sub select_all {
+    # TODO: docs
+    my ($self, $sql, @bind) = @_;
+
+    my $sth = $self->run($sql, @bind);
+    my $rows = $sth->fetchall_arrayref();
+
+    return $rows;
+}
+
+sub select_hashes {
+    # TODO: docs
+    my ($self, $sql, @bind) = @_;
+
+    my $sth = $self->run($sql, @bind);
+    my $rows = $sth->fetchall_arrayref( {} );
+
+    return $rows;
+}
+
+sub select_hash {
+    # TODO: docs
+    my ($self, $sql, @bind) = @_;
+
+    my $sth = $self->run($sql, @bind);
+    my $row = $sth->fetchrow_hashref();
+
+    return $row;
+}
 
 sub select_row {
+    # TODO: docs
     my ($self, $sql, @bind) = @_;
-    return $self->run($sql, @bind)->fetchrow_arrayref();
+    return $self->run($sql, @bind)->fetchall_arrayref();
 }
 
 sub select_value {
+    # TODO: docs
     my ($self, $sql, @bind) = @_;
     my $row = $self->select_row($sql, @bind);
     return $row ? $row->[0] : undef;
 }
 
-# ---------------------------------------------------------------
-# Identifier safety (tabulky/sloupce nelze bindovat)
-# ---------------------------------------------------------------
-
-sub _ident {
+sub _iden {
+    # TODO: docs
     my ($name) = @_;
-    croak "Invalid identifier: " . ($name // 'undef')
-        unless defined $name && $name =~ /^[A-Za-z_][A-Za-z0-9_]*$/;
     return "`$name`";
 }
 
-sub _idents { return join(", ", map { _ident($_) } @_) }
+sub _idens {
+    # TODO: docs
+    my @names = @_;
 
-# ---------------------------------------------------------------
-# CRUD
-# ---------------------------------------------------------------
+    my @indents;
+    for my $name (@names) {
+        push @indents, _iden($name);
+    }
+
+    return join(", ", @indents);
+}
 
 sub insert {
-    # insert('students', { name => 'Jan', age => 20 })
-    # insert('students', [ ['name','age'], ['Jan', 20] ])
+    # TODO: docs
+    # NOTE: supports method chaining
     my ($self, $table, $data) = @_;
 
     my ($cols, $vals);
@@ -146,52 +165,70 @@ sub insert {
         $vals = [values %$data];
     } elsif (ref $data eq 'ARRAY') {
         ($cols, $vals) = @$data;
-    } else {
-        croak "insert: expected hashref or [cols, vals]";
     }
 
-    my $sql = sprintf "INSERT INTO %s (%s) VALUES (%s)",
-        _ident($table), _idents(@$cols), join(", ", ("?") x @$cols);
+    my $table_name = _iden($table);
+    my $column_names = _idens(@$cols);
+    my $values = join(", ", ("?") x @$cols);
 
+    my $sql = "INSERT INTO $table_name ($column_names) VALUES ($values)";
     $self->run($sql, @$vals);
-    return $self->{dbh}->last_insert_id(undef, undef, undef, undef);
+
+    return $self;
 }
 
-sub insert_many {
-    # insert_many('students', ['name','age'], [['Jan',20],['Eva',22]])
+sub insert_namy {
+    # TODO: docs
+    # NOTE: supports method chaining
     my ($self, $table, $cols, $rows) = @_;
-    return 0 unless $rows && @$rows;
 
-    my $sql = sprintf "INSERT INTO %s (%s) VALUES (%s)",
-        _ident($table), _idents(@$cols), join(", ", ("?") x @$cols);
+    my $table_name = _iden($table);
+    my $column_names = _idens(@$cols);
+    my $values = join(", ", ("?") x @$cols);
+    
+    my $sql = "INSERT INTO $table_name ($column_names) VALUES ($values)";
 
-    my $sth = $self->{dbh}->prepare($sql);
-    my $n = 0;
+    my $sth = $self->{_dbh}->prepare($sql);
+
     for my $row (@$rows) {
         $sth->execute(@$row);
-        $n++;
     }
-    $self->commit;
-    return $n;
+
+    return $self;
 }
 
 sub update {
-    # update('students', { age => 21 }, { id => 5 })
+    # TODO: docs
+    # NOTE: supports method chaining
     my ($self, $table, $set, $where) = @_;
-    croak "update: empty SET"   unless $set   && %$set;
-    croak "update: empty WHERE" unless $where && %$where;
 
-    my @sc = keys %$set;
-    my @wc = keys %$where;
+    my @set_columns = keys %$set;
+    my @where_columns = keys %$where;
 
-    my $sql = sprintf "UPDATE %s SET %s WHERE %s",
-        _ident($table),
-        join(", ", map { _ident($_) . " = ?" } @sc),
-        join(" AND ", map { _ident($_) . " = ?" } @wc);
+    my $table_name = _ident($table);
 
-    my $sth = $self->run($sql, @{$set}{@sc}, @{$where}{@wc});
-    $self->commit;
-    return $sth->rows;
+    my @set_parts;
+    for my $column (@set_columns) {
+        push @set_parts, _iden($column) . " = ?";
+    }
+    my $set_sql = join(" AND ", @set_parts);
+
+    my @where_parts;
+    for my $column (@where_columns) {
+        push @where_parts, iden($column) . " = ?";
+    }
+    my $where_sql = join(" AND ", @where_parts);
+
+    my $sql = "UPDATE $table_name SET $set_sql WHERE $where_sql";
+
+    my @values = (
+        @{$set}{@set_columns},
+        @{$where}{@where_columns}
+    );
+
+    my $sth = $self->run($sql, @values);
+
+    return $self;
 }
 
 sub update_by_id {
@@ -200,112 +237,57 @@ sub update_by_id {
 }
 
 sub delete {
-    # delete('students', { active => 0 })
+    # TODO: docs
+    # NOTE: supports method chaining
     my ($self, $table, $where) = @_;
-    croak "delete: empty WHERE" unless $where && %$where;
 
-    my @wc = keys %$where;
-    my $sql = sprintf "DELETE FROM %s WHERE %s",
-        _ident($table),
-        join(" AND ", map { _ident($_) . " = ?" } @wc);
+    my @where_columns = keys %$where;
+    
+    my $table_name = _iden($table);
 
-    my $sth = $self->run($sql, @{$where}{@wc});
-    $self->commit;
-    return $sth->rows;
+    my @where_parts;
+    for my $column (@where_columns) {
+        push @where_parts, _iden($column) . " = ?";
+    }
+    my $where_sql = join(" AND ", @where_parts);
+
+    my $sql = "DELETE FROM $table_name WHERE $where_sql";
+
+    my @values = @{$where}{@where_columns};
+
+    my $sth = $self->run($sql, @values);
+
+    return $self;
 }
 
-sub delete_by_ids {
+sub delete_by_id {
+    # TODO: docs
+    # NOTE: supports method chaining
     my ($self, $table, $ids) = @_;
-    return 0 unless $ids && @$ids;
 
-    my $sql = sprintf "DELETE FROM %s WHERE id IN (%s)",
-        _ident($table), join(", ", ("?") x @$ids);
+    my $table_name = _iden($table);
+
+    my $values = join(", ", ("?") x @$ids);
+
+    my $sql = "DELETE FROM $table_name WHERE id IN ($values)";
 
     my $sth = $self->run($sql, @$ids);
-    $self->commit;
-    return $sth->rows;
+
+    return $self;
 }
 
-# ---------------------------------------------------------------
-# SELECT helpers
-# ---------------------------------------------------------------
-
-sub fetch_all {
-    # fetch_all('students', where => {class => 'A'},
-    #                        order_by => ['name','ASC'],
-    #                        limit => 20,
-    #                        columns => ['id','name'])
-    my ($self, $table, %opts) = @_;
-    my ($sql, @bind) = $self->_build_select($table, %opts);
-    return $self->select_all($sql, @bind);
-}
-
-sub fetch_one {
-    my ($self, $table, $where) = @_;
-    my @cols = keys %$where;
-    my $sql = sprintf "SELECT * FROM %s WHERE %s LIMIT 1",
-        _ident($table),
-        join(" AND ", map { _ident($_) . " = ?" } @cols);
-    return $self->select_row($sql, @{$where}{@cols});
-}
-
-sub fetch_by_id {
-    my ($self, $table, $id) = @_;
-    return $self->fetch_one($table, { id => $id });
-}
-
-sub _build_select {
-    my ($self, $table, %opts) = @_;
-    my @bind;
-
-    my $cols = $opts{columns}
-        ? join(", ", map { _ident($_) } @{ $opts{columns} })
-        : "*";
-    my $sql = "SELECT $cols FROM " . _ident($table);
-
-    if ($opts{where} && %{ $opts{where} }) {
-        my @wc = keys %{ $opts{where} };
-        $sql .= " WHERE " . join(" AND ", map { _ident($_) . " = ?" } @wc);
-        push @bind, @{ $opts{where} }{@wc};
-    }
-
-    if ($opts{order_by}) {
-        my ($col, $dir) = @{ $opts{order_by} };
-        $dir = uc($dir // 'ASC');
-        croak "Invalid order direction: $dir"
-            unless $dir eq 'ASC' || $dir eq 'DESC';
-        $sql .= " ORDER BY " . _ident($col) . " $dir";
-    }
-
-    if ($opts{limit}) {
-        $sql .= " LIMIT " . int($opts{limit});
-    }
-
-    return ($sql, @bind);
-}
-
-# ---------------------------------------------------------------
-# Transactions
-# ---------------------------------------------------------------
-
-sub commit   { $_[0]->{dbh}->commit   }
-sub rollback { $_[0]->{dbh}->rollback }
-
-sub txn {
-    # $db->txn(sub { my ($db) = @_; $db->insert(...); $db->update(...); });
-    my ($self, $code) = @_;
-    my $ok = eval { $code->($self); $self->commit; 1 };
-    unless ($ok) {
-        my $err = $@;
-        eval { $self->rollback };
-        croak "Transaction failed: $err";
-    }
-    return 1;
+sub commit {
+    # TODO: docs
+    my ($self) = @_;
+    $self->{_dbh}->commit();
 }
 
 sub DESTROY {
+    #
+    # Automatically disconnect database connection
+    #
     my ($self) = @_;
-    $self->{dbh}->disconnect if $self->{dbh};
+    $self->{_dbh}->disconnect() if $self->{_dbh};
 }
 
-1;
+1; # End of package declaration
