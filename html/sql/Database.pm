@@ -90,7 +90,11 @@ sub run {
 
     my $sth = $self->{_dbh}->prepare($sql);
     $sth->execute(@$data);
-    return $sth->fetchall_arrayref();
+
+    if ($sql =~ /^\s*SELECT/i) {
+        return $sth->fetchall_arrayref();
+    }
+    return 1;
 }
 
 sub get_specific {
@@ -108,7 +112,7 @@ sub get_specific {
 
 sub save_data {
     #
-    # Updates multiple rows at once.
+    # Updates multiple rows at once. #FIX: it's not reusable
     #
     my ($self, $table, $data) = @_;
 
