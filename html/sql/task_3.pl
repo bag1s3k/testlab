@@ -12,7 +12,7 @@ my $q = CGI->new();
 my $db = Database->new();
 $db->load_creds("/home/kipry/.db_env")->connect("mysql", 0);
 
-if (defined $q->param("home")) {
+if (defined $q->param("save")) {
     print $q->redirect("/~kipry/sql/task_3.pl");
 }
 
@@ -30,6 +30,16 @@ my $subjects = $db->run("SELECT * FROM subjects");
 show_table($q, $data, $subjects, $order, $column);
 
 save_subjects($q, $db);
+
+my $denied = 0;
+for my $param ($q->param()) {
+    if ($param =~ /^delete_(\d+)$/) {
+        $denied = delete_row($q, $db, $1);
+    }
+}
+if ($denied) {
+    print $q->p("Denied, student studies something");
+}
 
 print $q->end_html();
 
@@ -50,7 +60,7 @@ sub save_subjects {
         }
     }
 
-    $db->add_data("student_subject", ["student_id", "subject_id"], \@to_save);
+    $db->add_data("marks", ["student_id", "subject_id"], \@to_save);
 }
 
 sub parse_subject_data {
@@ -79,8 +89,11 @@ sub show_table {
     my ($values, $labels) = parse_subject_data($subjects);
 
     print $q->start_form({ -method=>'GET' });
-
-    print $q->hidden(-name=>$column, -value=>($order ? 0 : 1), -override=>1);
+    
+    unless (grep { /delete_/ } $q->param()) {
+        print $q->hidden(-name=>$column, -value=>($order ? 0 : 1), -override=>1);
+        # FIX: to disable sorting, click 2x required
+    }
 
     my @headers;
     for my $header ("id", "name", "lastname", "birth_date") {
@@ -101,13 +114,38 @@ sub show_table {
                     -labels =>$labels,
                     -default=>""
                 )
+            ),
+            $q->td(
+                $q->submit(
+                    -name => "delete_" . $row->[0],
+                    -value => "delete"
+                )
             )
         );
     }
     
     print $q->table({ -border=>1 }, @html_table);
 
-    print $q->submit(-name=>"home");
+    print $q->submit(-name=>"save");
     
     print $q->end_form();
+}
+
+sub delete_row {
+    #
+    # TODO: docs
+    #
+    my ($q, $db, $id) = @_;
+
+    my $exists = $db->run(
+        "SELECT EXISTS (SELECT 1 FROM marks WHERE student_id = ?)",
+        [$id]
+    )->[0]->[0];
+    
+    if (!$exists) {
+        $db->delete_data("students", [$id]);
+        return 0;
+    }
+
+    return 1;
 }
